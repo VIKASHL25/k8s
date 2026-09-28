@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MongoDB K8s App</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #0d1117; color: #c9d1d9; min-height: 100vh; }
+        .header { background: #161b22; padding: 20px; text-align: center; border-bottom: 1px solid #30363d; }
+        .header h1 { color: #58a6ff; font-size: 2rem; }
+        .header p { color: #8b949e; margin-top: 5px; }
+        .container { max-width: 900px; margin: 30px auto; padding: 0 20px; }
+        .card { background: #161b22; border-radius: 10px; padding: 20px; margin-bottom: 20px; border: 1px solid #30363d; }
+        .card h2 { color: #58a6ff; margin-bottom: 15px; font-size: 1.2rem; }
+        input { width: 100%; padding: 10px; margin: 8px 0; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; font-size: 14px; }
+        input:focus { outline: none; border-color: #58a6ff; }
+        .btn { background: #238636; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-top: 10px; margin-right: 8px; }
+        .btn:hover { background: #2ea043; }
+        .btn-red { background: #da3633; }
+        .btn-red:hover { background: #f85149; }
+        .btn-blue { background: #1f6feb; }
+        .btn-blue:hover { background: #388bfd; }
+        .item { background: #0d1117; padding: 15px; border-radius: 8px; margin: 10px 0; border: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; }
+        .item-info h3 { color: #58a6ff; font-size: 1rem; }
+        .item-info p { color: #8b949e; font-size: 13px; margin-top: 4px; }
+        .item-price { color: #3fb950; font-weight: bold; margin-top: 4px; }
+        .status { padding: 10px; border-radius: 6px; margin: 10px 0; text-align: center; font-size: 14px; }
+        .success { background: #1f4d2e; color: #3fb950; }
+        .error { background: #4d1f1f; color: #f85149; }
+        .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: #161b22; border-radius: 10px; padding: 15px; text-align: center; border: 1px solid #30363d; }
+        .stat-card h3 { color: #58a6ff; font-size: 2rem; }
+        .stat-card p { color: #8b949e; font-size: 13px; margin-top: 5px; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+        .badge { background: #1f6feb; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; margin-left: 8px; }
+        .empty { text-align: center; color: #8b949e; padding: 30px; }
+        .tag { background: #21262d; padding: 2px 8px; border-radius: 4px; font-size: 11px; color: #8b949e; margin-right: 5px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 FastAPI + MongoDB on Kubernetes</h1>
+        <p>Full-stack production app • Week 8 Capstone Project</p>
+    </div>
+
+    <div class="container">
+        <!-- Stats -->
+        <div class="stats">
+            <div class="stat-card">
+                <h3 id="total-items">0</h3>
+                <p>📦 Total Items</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="total-value">$0</h3>
+                <p>💰 Total Value</p>
+            </div>
+            <div class="stat-card">
+                <h3>☸️</h3>
+                <p>Running on K8s</p>
+            </div>
+        </div>
+
+        <!-- Add Item -->
+        <div class="card">
+            <h2>➕ Add New Item</h2>
+            <div class="form-row">
+                <input type="text" id="item-name" placeholder="Name (e.g. Laptop)" />
+                <input type="text" id="item-desc" placeholder="Description" />
+                <input type="number" id="item-price" placeholder="Price (e.g. 999.99)" step="0.01" />
+            </div>
+            <button class="btn" onclick="createItem()">➕ Add Item</button>
+            <div id="create-status"></div>
+        </div>
+
+        <!-- Items List -->
+        <div class="card">
+            <h2>📦 Items <span class="badge" id="badge">0</span></h2>
+            <button class="btn btn-blue" onclick="loadItems()">🔄 Refresh</button>
+            <div id="items-list" style="margin-top: 15px;"></div>
+        </div>
+    </div>
+
+    <script>
+        const API = 'http://myapp.local:9090/api';
+
+        async function loadItems() {
+            try {
+                const res = await fetch(`${API}/items`);
+                const items = await res.json();
+
+                document.getElementById('total-items').textContent = items.length;
+                document.getElementById('badge').textContent = items.length;
+
+                const total = items.reduce((sum, i) => sum + i.price, 0);
+                document.getElementById('total-value').textContent = '$' + total.toFixed(2);
+
+                const list = document.getElementById('items-list');
+                if (items.length === 0) {
+                    list.innerHTML = '<div class="empty">📭 No items yet. Add one above!</div>';
+                    return;
+                }
+
+                list.innerHTML = items.map(item => `
+                    <div class="item">
+                        <div class="item-info">
+                            <h3>${item.name}</h3>
+                            <p>${item.description}</p>
+                            <p class="item-price">$${item.price.toFixed(2)}</p>
+                            <span class="tag">ID: ${item.id.slice(-6)}</span>
+                        </div>
+                        <div>
+                            <button class="btn btn-red" onclick="deleteItem('${item.id}')">🗑️ Delete</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch(e) {
+                document.getElementById('items-list').innerHTML =
+                    '<div class="empty" style="color:#f85149;">❌ Cannot connect to API. Make sure port-forward is running!</div>';
+            }
+        }
+
+        async function createItem() {
+            const name = document.getElementById('item-name').value.trim();
+            const desc = document.getElementById('item-desc').value.trim();
+            const price = parseFloat(document.getElementById('item-price').value) || 0;
+            const status = document.getElementById('create-status');
+
+            if (!name) {
+                status.innerHTML = '<div class="status error">❌ Please enter an item name!</div>';
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API}/items`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name, description: desc, price})
+                });
+                const item = await res.json();
+                status.innerHTML = `<div class="status success">✅ Added: ${item.name} ($${item.price})</div>`;
+                document.getElementById('item-name').value = '';
+                document.getElementById('item-desc').value = '';
+                document.getElementById('item-price').value = '';
+                loadItems();
+            } catch(e) {
+                status.innerHTML = '<div class="status error">❌ Failed to add item!</div>';
+            }
+        }
+
+        async function deleteItem(id) {
+            try {
+                await fetch(`${API}/items/${id}`, {method: 'DELETE'});
+                loadItems();
+            } catch(e) {
+                alert('Failed to delete item!');
+            }
+        }
+
+        loadItems();
+        setInterval(loadItems, 30000);
+    </script>
+</body>
+</html>
